@@ -86,8 +86,7 @@ function add_concat(source_string) {
 
 def _python2_env():
     """function to check python version for compatibility handling"""
-    if sys.version_info[0] < 3: return True
-    else: return False
+    return sys.version_info[0] < 3
 
 def _python3_env():
     """function to check python version for compatibility handling"""
@@ -115,14 +114,12 @@ def _py23_open(target_filename, target_mode = 'r'):
 def _py23_read(input_text = None):
     """function for python 2 and 3 read utf-8 compatibility handling"""
     if input_text is None: return None
-    if _python2_env(): return input_text.encode('utf-8')
-    else: return input_text
+    return input_text.encode('utf-8') if _python2_env() else input_text
 
 def _py23_write(input_text = None):
     """function for python 2 and 3 write utf-8 compatibility handling"""
     if input_text is None: return None
-    if _python2_env(): return input_text.decode('utf-8')
-    else: return input_text
+    return input_text.decode('utf-8') if _python2_env() else input_text
 
 def _tagui_read():
     """function to read from tagui process live mode interface"""
@@ -206,48 +203,54 @@ def _tagui_delta(base_directory = None):
     global __version__
     if base_directory is None or base_directory == '': return False
     # skip downloading if it is already done before for current release
-    if os.path.isfile(base_directory + '/' + 'rpa_python_' + __version__): return True
+    if os.path.isfile(f'{base_directory}/rpa_python_{__version__}'): return True
 
     # define list of key tagui files to be downloaded and synced locally
     delta_list = ['tagui', 'tagui.cmd', 'end_processes', 'end_processes.cmd', 
                     'tagui_header.js', 'tagui_parse.php', 'tagui.sikuli/tagui.py']
 
     for delta_file in delta_list:
-        tagui_delta_url = 'https://raw.githubusercontent.com/tebelorg/Tump/master/TagUI-Python/' + delta_file
-        tagui_delta_file = base_directory + '/' + 'src' + '/' + delta_file
+        tagui_delta_url = f'https://raw.githubusercontent.com/tebelorg/Tump/master/TagUI-Python/{delta_file}'
+        tagui_delta_file = f'{base_directory}/src/{delta_file}'
         if not download(tagui_delta_url, tagui_delta_file): return False
 
     # make sure execute permission is there for .tagui/src/tagui and end_processes
     if platform.system() in ['Linux', 'Darwin']:
-        os.system('chmod -R 755 "' + base_directory + '/' + 'src' + '/' + 'tagui" > /dev/null 2>&1')
-        os.system('chmod -R 755 "' + base_directory + '/' + 'src' + '/' + 'end_processes" > /dev/null 2>&1')
+        os.system(f'chmod -R 755 "{base_directory}/src/tagui" > /dev/null 2>&1')
+        os.system(
+            f'chmod -R 755 "{base_directory}/src/end_processes" > /dev/null 2>&1'
+        )
 
     # create marker file to skip syncing delta files next time for current release
-    delta_done_file = _py23_open(base_directory + '/' + 'rpa_python_' + __version__, 'w')
+    delta_done_file = _py23_open(f'{base_directory}/rpa_python_{__version__}', 'w')
     delta_done_file.write(_py23_write('TagUI installation files used by RPA for Python'))
     delta_done_file.close()
     return True
 
 def _patch_macos_pjs():
     """patch PhantomJS to latest v2.1.1 that plays well with new macOS versions"""
-    if platform.system() == 'Darwin' and not os.path.isdir(tagui_location() + '/.tagui/src/phantomjs_old'):
-        original_directory = os.getcwd(); os.chdir(tagui_location() + '/.tagui/src')
+    if platform.system() == 'Darwin' and not os.path.isdir(
+        f'{tagui_location()}/.tagui/src/phantomjs_old'
+    ):
+        original_directory = os.getcwd()
+        os.chdir(f'{tagui_location()}/.tagui/src')
         print('[RPA][INFO] - downloading latest PhantomJS to fix OpenSSL issue')
         download('https://github.com/tebelorg/Tump/releases/download/v1.0.0/phantomjs-2.1.1-macosx.zip', 'phantomjs.zip')
         if not os.path.isfile('phantomjs.zip'):
             os.chdir(original_directory)
             show_error('[RPA][ERROR] - unable to download latest PhantomJS v2.1.1')
             return False
-        unzip('phantomjs.zip'); os.rename('phantomjs', 'phantomjs_old'); os.rename('phantomjs-2.1.1-macosx', 'phantomjs')
+        unzip('phantomjs.zip')
+        os.rename('phantomjs', 'phantomjs_old')
+        os.rename('phantomjs-2.1.1-macosx', 'phantomjs')
         if os.path.isfile('phantomjs.zip'): os.remove('phantomjs.zip')
         os.system('chmod -R 755 phantomjs > /dev/null 2>&1')
-        os.chdir(original_directory); return True
-    else:
-        return True
+        os.chdir(original_directory)
+    return True
 
 def coord(x_coordinate = 0, y_coordinate = 0):
     """function to form a coordinate string from x and y integers"""
-    return '(' + str(x_coordinate) + ',' + str(y_coordinate) + ')'
+    return f'({str(x_coordinate)},{str(y_coordinate)})'
 
 def debug(on_off = None):
     """function to set debug mode, eg print debug info"""
@@ -256,7 +259,7 @@ def debug(on_off = None):
         if isinstance(on_off, int):
             _tagui_debug = on_off
         else:
-           send('// ' + on_off) 
+            send(f'// {on_off}')
     return _tagui_debug
 
 def error(on_off = None):
@@ -322,63 +325,62 @@ def setup():
     elif platform.system() == 'Darwin': tagui_zip_file = 'TagUI_macOS.zip'
     elif platform.system() == 'Windows': tagui_zip_file = 'TagUI_Windows.zip'
     else:
-        show_error('[RPA][ERROR] - unknown ' + platform.system() + ' operating system to setup TagUI')
+        show_error(
+            f'[RPA][ERROR] - unknown {platform.system()} operating system to setup TagUI'
+        )
         return False
-    
+
     if not os.path.isfile('rpa_python.zip'):
         # primary installation pathway by downloading from internet, requiring internet access
         print('[RPA][INFO] - downloading TagUI (~200MB) and unzipping to below folder...')
-        print('[RPA][INFO] - ' + home_directory)
+        print(f'[RPA][INFO] - {home_directory}')
 
         # set tagui zip download url and download zip for respective operating systems
-        tagui_zip_url = 'https://github.com/tebelorg/Tump/releases/download/v1.0.0/' + tagui_zip_file 
-        if not download(tagui_zip_url, home_directory + '/' + tagui_zip_file):
+        tagui_zip_url = f'https://github.com/tebelorg/Tump/releases/download/v1.0.0/{tagui_zip_file}'
+        if not download(tagui_zip_url, f'{home_directory}/{tagui_zip_file}'):
             # error message is shown by download(), no need for message here 
             return False
 
         # unzip downloaded zip file to user home folder
-        unzip(home_directory + '/' + tagui_zip_file, home_directory)
-        if not os.path.isfile(home_directory + '/' + 'tagui' + '/' + 'src' + '/' + 'tagui'):
-            show_error('[RPA][ERROR] - unable to unzip TagUI to ' + home_directory)
-            return False
-
+        unzip(f'{home_directory}/{tagui_zip_file}', home_directory)
     else:
         # secondary installation pathway by using the rpa_python.zip generated from pack()
         print('[RPA][INFO] - unzipping TagUI (~200MB) from rpa_python.zip to below folder...')
-        print('[RPA][INFO] - ' + home_directory)
+        print(f'[RPA][INFO] - {home_directory}')
 
         import shutil
-        shutil.move('rpa_python.zip', home_directory + '/' + tagui_zip_file)
+        shutil.move('rpa_python.zip', f'{home_directory}/{tagui_zip_file}')
 
-        if not os.path.isdir(home_directory + '/tagui'): os.mkdir(home_directory + '/tagui')
-        unzip(home_directory + '/' + tagui_zip_file, home_directory + '/tagui')
-        if not os.path.isfile(home_directory + '/' + 'tagui' + '/' + 'src' + '/' + 'tagui'):
-            show_error('[RPA][ERROR] - unable to unzip TagUI to ' + home_directory)
-            return False
+        if not os.path.isdir(f'{home_directory}/tagui'):
+            os.mkdir(f'{home_directory}/tagui')
+        unzip(f'{home_directory}/{tagui_zip_file}', f'{home_directory}/tagui')
+    if not os.path.isfile(f'{home_directory}/tagui/src/tagui'):
+        show_error(f'[RPA][ERROR] - unable to unzip TagUI to {home_directory}')
+        return False
 
     # set correct tagui folder for different operating systems
     if platform.system() == 'Windows':
-        tagui_directory = home_directory + '/' + 'tagui'
+        tagui_directory = f'{home_directory}/tagui'
     else:
-        tagui_directory = home_directory + '/' + '.tagui'
+        tagui_directory = f'{home_directory}/.tagui'
 
         # overwrite tagui to .tagui folder for Linux / macOS
 
-        # first rename existing .tagui folder to .tagui_previous 
+        # first rename existing .tagui folder to .tagui_previous
         if os.path.isdir(tagui_directory):
-            os.rename(tagui_directory, tagui_directory + '_previous')
+            os.rename(tagui_directory, f'{tagui_directory}_previous')
 
         # next rename extracted tagui folder (verified earlier) to .tagui
-        os.rename(home_directory + '/' + 'tagui', tagui_directory)
+        os.rename(f'{home_directory}/tagui', tagui_directory)
 
         # finally remove .tagui_previous folder if it exists
-        if os.path.isdir(tagui_directory + '_previous'):
+        if os.path.isdir(f'{tagui_directory}_previous'):
             import shutil
-            shutil.rmtree(tagui_directory + '_previous')
+            shutil.rmtree(f'{tagui_directory}_previous')
 
-    # after unzip, remove downloaded zip file to save disk space 
-    if os.path.isfile(home_directory + '/' + tagui_zip_file):
-        os.remove(home_directory + '/' + tagui_zip_file)
+    # after unzip, remove downloaded zip file to save disk space
+    if os.path.isfile(f'{home_directory}/{tagui_zip_file}'):
+        os.remove(f'{home_directory}/{tagui_zip_file}')
 
     # download stable delta files from tagui cutting edge version
     print('[RPA][INFO] - done. syncing TagUI with stable cutting edge version')
@@ -389,7 +391,10 @@ def setup():
         # zipfile extractall does not preserve execute permissions
         # invoking chmod to set all files with execute permissions
         # and update delta tagui/src/tagui with execute permission
-        if os.system('chmod -R 755 "' + tagui_directory + '" > /dev/null 2>&1') != 0:
+        if (
+            os.system(f'chmod -R 755 "{tagui_directory}" > /dev/null 2>&1')
+            != 0
+        ):
             show_error('[RPA][ERROR] - unable to set permissions for .tagui folder')
             return False 
 
@@ -414,7 +419,10 @@ def setup():
         # zipfile extractall does not preserve execute permissions
         # invoking chmod to set all files with execute permissions
         # and update delta tagui/src/tagui with execute permission
-        if os.system('chmod -R 755 "' + tagui_directory + '" > /dev/null 2>&1') != 0:
+        if (
+            os.system(f'chmod -R 755 "{tagui_directory}" > /dev/null 2>&1')
+            != 0
+        ):
             show_error('[RPA][ERROR] - unable to set permissions for .tagui folder')
             return False
 
@@ -425,22 +433,33 @@ def setup():
     # perform Windows specific setup actions
     if platform.system() == 'Windows':
         # check that tagui packaged php is working, it has dependency on MSVCR110.dll
-        if os.system('"' + tagui_directory + '/' + 'src' + '/' + 'php/php.exe" -v > nul 2>&1') != 0:
+        if (
+            os.system(f'"{tagui_directory}/src/php/php.exe" -v > nul 2>&1')
+            != 0
+        ):
             print('[RPA][INFO] - now installing missing Visual C++ Redistributable dependency')
 
             # download from hosted setup file, if not already present when deployed using pack()
-            if not os.path.isfile(tagui_directory + '/vcredist_x86.exe'):
+            if not os.path.isfile(f'{tagui_directory}/vcredist_x86.exe'):
                 vcredist_x86_url = 'https://raw.githubusercontent.com/tebelorg/Tump/master/vcredist_x86.exe'
-                if not download(vcredist_x86_url, tagui_directory + '/vcredist_x86.exe'):
+                if not download(
+                    vcredist_x86_url, f'{tagui_directory}/vcredist_x86.exe'
+                ):
                     return False
 
             # run setup to install the MSVCR110.dll dependency (user action required)
-            os.system('"' + tagui_directory + '/vcredist_x86.exe"')
-                
+            os.system(f'"{tagui_directory}/vcredist_x86.exe"')
+
             # check again if tagui packaged php is working, after installing vcredist_x86.exe
-            if os.system('"' + tagui_directory + '/' + 'src' + '/' + 'php/php.exe" -v > nul 2>&1') != 0:
+            if (
+                os.system(f'"{tagui_directory}/src/php/php.exe" -v > nul 2>&1')
+                != 0
+            ):
                 print('[RPA][INFO] - MSVCR110.dll is still missing, install vcredist_x86.exe from')
-                print('[RPA][INFO] - the vcredist_x86.exe file in ' + home_directory + '\\tagui or from')
+                print(
+                    f'[RPA][INFO] - the vcredist_x86.exe file in {home_directory}'
+                    + '\\tagui or from'
+                )
                 print('[RPA][INFO] - https://www.microsoft.com/en-us/download/details.aspx?id=30679')
                 print('[RPA][INFO] - after that, TagUI ready for use in your Python environment')
                 return False
